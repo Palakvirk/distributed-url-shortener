@@ -2,6 +2,7 @@ const express = require('express');
 const redisClient = require('./redis');
 const pool = require('./db');
 const { nanoid } = require('nanoid');
+const { generateShortCode } = require('./snowflake'); // ← add this line
 
 const app = express();
 const PORT = 3000;
@@ -30,20 +31,20 @@ app.post('/api/shorten', async (req, res) => {
   }
 
   try {
-    new URL(url);
+    new URL(url); // throws if invalid
   } catch {
     return res.status(400).json({ error: 'Invalid URL format' });
   }
 
   try {
-    const shortCode = nanoid(7);
+    const shortCode = generateShortCode();
 
     await pool.query(
-      'INSERT INTO urls (short_code, original_url) VALUES ($1, $2) RETURNING *',
+      'INSERT INTO urls (short_code, original_url) VALUES ($1, $2)',
       [shortCode, url]
     );
 
-    await redisClient.set(shortCode, url, { EX: 3600 }); // ← new line: pre-warm the cache
+    await redisClient.set(shortCode, url, { EX: 3600 });
 
     res.status(201).json({
       shortUrl: `http://localhost:3000/${shortCode}`,
@@ -61,7 +62,6 @@ app.get('/:shortCode', async (req, res) => {
   const { shortCode } = req.params;
 
   try {
-    // 1. Check Redis first
     const cachedUrl = await redisClient.get(shortCode);
 
     if (cachedUrl) {
@@ -71,7 +71,6 @@ app.get('/:shortCode', async (req, res) => {
 
     console.log('Cache MISS for', shortCode);
 
-    // 2. Not in cache — check Postgres
     const result = await pool.query(
       'SELECT original_url FROM urls WHERE short_code = $1',
       [shortCode]
@@ -82,8 +81,6 @@ app.get('/:shortCode', async (req, res) => {
     }
 
     const { original_url } = result.rows[0];
-
-    // 3. Populate the cache for next time (expire after 1 hour)
     await redisClient.set(shortCode, original_url, { EX: 3600 });
 
     res.redirect(original_url);
@@ -92,7 +89,6 @@ app.get('/:shortCode', async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
-
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
