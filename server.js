@@ -2,12 +2,13 @@ const express = require('express');
 const redisClient = require('./redis');
 const pool = require('./db');
 const { nanoid } = require('nanoid');
-const { generateShortCode } = require('./snowflake'); // ← add this line
+const { generateShortCode } = require('./snowflake');
+const rateLimiter = require('./rateLimiter');
 
 const app = express();
 const PORT = 3000;
 
-app.use(express.json()); // lets us read JSON from request bodies
+app.use(express.json());
 
 app.get('/', (req, res) => {
   res.send('URL Shortener is alive!');
@@ -23,7 +24,7 @@ app.get('/test-db', async (req, res) => {
   }
 });
 
-app.post('/api/shorten', async (req, res) => {
+app.post('/api/shorten', rateLimiter, async (req, res) => {
   const { url } = req.body;
 
   if (!url) {
@@ -31,7 +32,7 @@ app.post('/api/shorten', async (req, res) => {
   }
 
   try {
-    new URL(url); // throws if invalid
+    new URL(url);
   } catch {
     return res.status(400).json({ error: 'Invalid URL format' });
   }
