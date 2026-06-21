@@ -4,8 +4,10 @@ const pool = require('./db');
 const { nanoid } = require('nanoid');
 const { generateShortCode } = require('./snowflake');
 const rateLimiter = require('./rateLimiter');
+const cors = require('cors');
 
 const app = express();
+app.use(cors());
 const PORT = 3000;
 
 app.use(express.json());
@@ -92,6 +94,18 @@ app.get('/:shortCode', async (req, res) => {
     redisClient.lPush('click_events', JSON.stringify({ shortCode, timestamp: Date.now() }));
 
     res.redirect(original_url);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+app.get('/api/urls', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT short_code, original_url, click_count, created_at FROM urls ORDER BY created_at DESC'
+    );
+    res.json(result.rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Something went wrong' });
