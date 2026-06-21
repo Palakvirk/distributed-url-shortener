@@ -67,6 +67,10 @@ app.get('/:shortCode', async (req, res) => {
 
     if (cachedUrl) {
       console.log('Cache HIT for', shortCode);
+
+      // Push click event to queue — don't wait for it
+      redisClient.lPush('click_events', JSON.stringify({ shortCode, timestamp: Date.now() }));
+
       return res.redirect(cachedUrl);
     }
 
@@ -83,6 +87,9 @@ app.get('/:shortCode', async (req, res) => {
 
     const { original_url } = result.rows[0];
     await redisClient.set(shortCode, original_url, { EX: 3600 });
+
+    // Push click event to queue here too
+    redisClient.lPush('click_events', JSON.stringify({ shortCode, timestamp: Date.now() }));
 
     res.redirect(original_url);
   } catch (err) {
