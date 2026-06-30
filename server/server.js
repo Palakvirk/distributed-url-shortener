@@ -50,7 +50,7 @@ app.post('/api/shorten', rateLimiter, async (req, res) => {
     await redisClient.set(shortCode, url, { EX: 3600 });
 
     res.status(201).json({
-      shortUrl: `http://localhost:3000/${shortCode}`,
+      shortUrl: `${process.env.BASE_URL || 'http://localhost:3000'}/${shortCode}`,
       original: url,
     });
   } catch (err) {
