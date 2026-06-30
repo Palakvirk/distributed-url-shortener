@@ -5,6 +5,7 @@ const { nanoid } = require('nanoid');
 const { generateShortCode } = require('./snowflake');
 const rateLimiter = require('./rateLimiter');
 const cors = require('cors');
+require('./worker'); // starts processing the click queue in this same process
 
 const app = express();
 app.use(cors());
